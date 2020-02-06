@@ -55,7 +55,7 @@ func (d plugin) Create(r *volume.CreateRequest) error {
 	d.mutex.Lock()
 	defer d.mutex.Unlock()
 
-	_, err := volumes.Create(d.blockClient, volumes.CreateOpts{
+	vol, err := volumes.Create(d.blockClient, volumes.CreateOpts{
 		Size: 10,
 		Name: r.Name,
 	}).Extract()
@@ -64,6 +64,8 @@ func (d plugin) Create(r *volume.CreateRequest) error {
 		logger.WithError(err).Errorf("Error creating volume: %s", err.Error())
 		return err
 	}
+
+	logger.WithField("id", vol.ID).Debug("Volume created.")
 
 	return nil
 }
@@ -160,13 +162,15 @@ func (d plugin) Remove(r *volume.RemoveRequest) error {
 	}
 
 	logger = logger.WithField("id", vol.ID)
-	logger.Debugf("Deleting volume %s", vol.ID)
+	logger.Debug("Deleting volume...")
 
 	err = volumes.Delete(d.blockClient, vol.ID, volumes.DeleteOpts{}).ExtractErr()
 	if err != nil {
 		logger.WithError(err).Errorf("Error deleting volume: %s", err.Error())
 		return err
 	}
+
+	logger.Debug("Volume deleted.")
 
 	return nil
 }

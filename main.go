@@ -95,11 +95,12 @@ func main() {
 		AllowReauth:                 true,
 	}
 
-	log.WithField("endpoint", opts.IdentityEndpoint).Info("Connecting...")
+	logger := log.WithField("endpoint", opts.IdentityEndpoint)
+	logger.Info("Connecting...")
 
 	provider, err := openstack.AuthenticatedClient(opts)
 	if err != nil {
-		log.Fatal(err.Error())
+		logger.WithError(err).Fatal(err.Error())
 	}
 
 	endpointOpts := gophercloud.EndpointOpts{
@@ -109,13 +110,15 @@ func main() {
 	plugin, err := newPlugin(provider, endpointOpts, &config)
 
 	if err != nil {
-		log.Fatal(err.Error())
+		logger.WithError(err).Fatal(err.Error())
 	}
 
 	handler := volume.NewHandler(plugin)
 
+	logger.Info("Connected.")
+
 	err = handler.ServeUnix("cinder", 0)
 	if err != nil {
-		log.Fatal(err.Error())
+		logger.WithError(err).Fatal(err.Error())
 	}
 }
