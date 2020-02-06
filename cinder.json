@@ -1,0 +1,6 @@
+{
+    "endpoint": "http://keystone.example.org/v3",
+    "username": "username",
+    "password": "password",
+    "domainName": "default"
+}
