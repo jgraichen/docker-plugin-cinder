@@ -56,3 +56,15 @@ func waitForDevice(dev string) error {
 
 	return fmt.Errorf("Timeout waiting for file: %s", dev)
 }
+
+func isDirectoryPresent(path string) (bool, error) {
+	stat, err := os.Stat(path)
+
+	if os.IsNotExist(err) {
+		return false, nil
+	} else if err != nil {
+		return false, err
+	} else {
+		return stat.IsDir(), nil
+	}
+}

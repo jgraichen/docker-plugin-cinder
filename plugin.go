@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	uuid "github.com/satori/go.uuid"
@@ -238,6 +239,7 @@ func (d plugin) Mount(r *volume.MountRequest) (*volume.MountResponse, error) {
 }
 
 func (d plugin) Path(r *volume.PathRequest) (*volume.PathResponse, error) {
+
 	return nil, errors.New("Not Implemented")
 }
 
@@ -275,7 +277,36 @@ func (d plugin) Remove(r *volume.RemoveRequest) error {
 }
 
 func (d plugin) Unmount(r *volume.UnmountRequest) error {
-	return errors.New("Not Implemented")
+	logger := log.WithFields(log.Fields{"name": r.Name, "action": "unmount"})
+	logger.Infof("Unmounting volume '%s' ...", r.Name)
+
+	d.mutex.Lock()
+	defer d.mutex.Unlock()
+
+	path := filepath.Join(d.config.MountDir, r.ID)
+	exists, err := isDirectoryPresent(path)
+	if err != nil {
+		logger.WithError(err).Error("Error checking directory stat: %s", path)
+	}
+
+	if exists {
+		err = syscall.Unmount(path, 0)
+		if err != nil {
+			logger.WithError(err).Errorf("Error unmount %s", path)
+		}
+	}
+
+	vol, err := d.getByName(r.Name)
+	if err != nil {
+		logger.WithError(err).Error("Error retriving volume")
+	} else {
+		_, err = d.detachVolume(logger.Context, vol)
+		if err != nil {
+			logger.WithError(err).Error("Error detaching volume")
+		}
+	}
+
+	return nil
 }
 
 func (d plugin) getByName(name string) (*volumes.Volume, error) {
