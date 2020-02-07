@@ -23,7 +23,6 @@ type plugin struct {
 	computeClient *gophercloud.ServiceClient
 	config        *tConfig
 	mutex         *sync.Mutex
-	instanceUUID  string
 }
 
 func newPlugin(provider *gophercloud.ProviderClient, endpointOpts gophercloud.EndpointOpts, config *tConfig) (*plugin, error) {
@@ -39,26 +38,30 @@ func newPlugin(provider *gophercloud.ProviderClient, endpointOpts gophercloud.En
 		return nil, err
 	}
 
-	bytes, err := ioutil.ReadFile("/etc/machine-id")
-	if err != nil {
-		log.WithError(err).Error("Error reading machine id")
-		return nil, err
-	}
+	if len(config.MachineID) == 0 {
+		bytes, err := ioutil.ReadFile("/etc/machine-id")
+		if err != nil {
+			log.WithError(err).Error("Error reading machine id")
+			return nil, err
+		}
 
-	uuid, err := uuid.FromString(strings.TrimSpace(string(bytes)))
-	if err != nil {
-		log.WithError(err).Error("Error parsing machine id")
-		return nil, err
-	}
+		uuid, err := uuid.FromString(strings.TrimSpace(string(bytes)))
+		if err != nil {
+			log.WithError(err).Error("Error parsing machine id")
+			return nil, err
+		}
 
-	log.WithField("uuid", uuid).Info("Instance UUID detected")
+		log.WithField("id", uuid).Info("Machine ID detected")
+		config.MachineID = uuid.String()
+	} else {
+		log.WithField("id", config.MachineID).Debug("Using configured machine ID")
+	}
 
 	return &plugin{
 		blockClient:   blockClient,
 		computeClient: computeClient,
 		config:        config,
 		mutex:         &sync.Mutex{},
-		instanceUUID:  uuid.String(),
 	}, nil
 }
 
@@ -192,7 +195,7 @@ func (d plugin) Mount(r *volume.MountRequest) (*volume.MountResponse, error) {
 		return nil, errors.New("Invalid Volume State")
 	}
 
-	att, err := volumeattach.Create(d.computeClient, d.instanceUUID, volumeattach.CreateOpts{
+	att, err := volumeattach.Create(d.computeClient, d.config.MachineID, volumeattach.CreateOpts{
 		VolumeID: vol.ID,
 	}).Extract()
 

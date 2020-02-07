@@ -33,6 +33,7 @@ type tConfig struct {
 	ApplicationCredentialName   string `json:"applicationCredentialName,omitempty"`
 	ApplicationCredentialSecret string `json:"applicationCredentialSecret,omitempty"`
 	Region                      string `json:"region,omitempty"`
+	MachineID                   string `json:"machineID,omitempty"`
 }
 
 func init() {
