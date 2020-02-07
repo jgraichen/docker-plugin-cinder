@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -173,21 +175,8 @@ func (d plugin) Mount(r *volume.MountRequest) (*volume.MountResponse, error) {
 
 	if len(vol.Attachments) > 0 {
 		logger.Debug("Volume already attached, detaching first")
-		for _, att := range vol.Attachments {
-			err := volumeattach.Delete(d.computeClient, att.ServerID, att.ID).ExtractErr()
-			if err != nil {
-				logger.WithError(err).Errorf("Error detaching volume before mount: %s", err.Error())
-				return nil, err
-			}
-		}
-
-		// TODO: Wait to detach here
-		time.Sleep(5 * time.Second)
-
-		vol, err = volumes.Get(d.blockClient, vol.ID).Extract()
-
-		if err != nil {
-			logger.WithError(err).Errorf("Error retriving volume: %s", err.Error())
+		if vol, err = d.detachVolume(logger.Context, vol); err != nil {
+			logger.WithError(err).Error("Error detaching volume")
 			return nil, err
 		}
 	}
@@ -198,17 +187,13 @@ func (d plugin) Mount(r *volume.MountRequest) (*volume.MountResponse, error) {
 		return nil, errors.New("Invalid Volume State")
 	}
 
-	att, err := volumeattach.Create(d.computeClient, d.config.MachineID, volumeattach.CreateOpts{
-		VolumeID: vol.ID,
-	}).Extract()
-
+	vol, err = d.attachVolume(logger.Context, vol)
 	if err != nil {
 		logger.WithError(err).Errorf("Error attaching volume: %s", err.Error())
 		return nil, err
 	}
 
-	// TODO: Check for attachment status
-	time.Sleep(5 * time.Second)
+	dev := fmt.Sprintf("/dev/disk/by-id/virtio-%.20s", vol.ID)
 
 	logger.Debugf("Volume attached: %+v", att)
 
@@ -221,7 +206,7 @@ func (d plugin) Mount(r *volume.MountRequest) (*volume.MountResponse, error) {
 		return nil, err
 	}
 
-	out, err := exec.Command("mount", att.Device, path).CombinedOutput()
+	out, err := exec.Command("mount", dev, path).CombinedOutput()
 	if err != nil {
 		log.WithError(err).Errorf("%s", out)
 		return nil, errors.New(string(out))
@@ -251,6 +236,14 @@ func (d plugin) Remove(r *volume.RemoveRequest) error {
 
 	logger = logger.WithField("id", vol.ID)
 	logger.Debug("Deleting volume...")
+
+	if len(vol.Attachments) > 0 {
+		logger.Debug("Volume still attached, detaching first")
+		if vol, err = d.detachVolume(logger.Context, vol); err != nil {
+			logger.WithError(err).Error("Error detaching volume")
+			return err
+		}
+	}
 
 	err = volumes.Delete(d.blockClient, vol.ID, volumes.DeleteOpts{}).ExtractErr()
 	if err != nil {
@@ -293,4 +286,55 @@ func (d plugin) getByName(name string) (*volumes.Volume, error) {
 	}
 
 	return volume, err
+}
+
+func (d plugin) attachVolume(ctx context.Context, vol *volumes.Volume) (*volumes.Volume, error) {
+	logger := log.WithContext(ctx)
+
+	opts := volumeattach.CreateOpts{VolumeID: vol.ID}
+	_, err := volumeattach.Create(d.computeClient, d.config.MachineID, opts).Extract()
+
+	if err != nil {
+		logger.WithError(err).Errorf("Error attaching volume: %s", err.Error())
+		return nil, err
+	}
+
+	return d.waitOnVolumeState(ctx, vol, "available")
+}
+
+func (d plugin) detachVolume(ctx context.Context, vol *volumes.Volume) (*volumes.Volume, error) {
+	logger := log.WithContext(ctx)
+
+	for _, att := range vol.Attachments {
+		logger.Debug("Deleting attachment")
+		err := volumeattach.Delete(d.computeClient, att.ServerID, att.ID).ExtractErr()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return d.waitOnVolumeState(ctx, vol, "available")
+}
+
+func (d plugin) waitOnVolumeState(ctx context.Context, vol *volumes.Volume, status string) (*volumes.Volume, error) {
+	if vol.Status == status {
+		return vol, nil
+	}
+
+	for i := 1; i <= 10; i++ {
+		time.Sleep(500 * time.Millisecond)
+
+		vol, err := volumes.Get(d.blockClient, vol.ID).Extract()
+		if err != nil {
+			return nil, err
+		}
+
+		if vol.Status == status {
+			return vol, nil
+		}
+	}
+
+	log.WithContext(ctx).Debugf("Volume did not become %s: %+v", status, vol)
+
+	return nil, fmt.Errorf("Volume status did became %s", status)
 }
