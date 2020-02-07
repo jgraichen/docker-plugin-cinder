@@ -153,7 +153,6 @@ func (d plugin) Mount(r *volume.MountRequest) (*volume.MountResponse, error) {
 	defer d.mutex.Unlock()
 
 	vol, err := d.getByName(r.Name)
-
 	if err != nil {
 		logger.WithError(err).Errorf("Error retriving volume: %s", err.Error())
 		return nil, err
@@ -216,7 +215,7 @@ func (d plugin) Mount(r *volume.MountRequest) (*volume.MountResponse, error) {
 		}
 	}
 
-	path := filepath.Join(d.config.MountDir, r.Name)
+	path := filepath.Join(d.config.MountDir, r.ID)
 	logger = logger.WithField("mount", path)
 	if err = os.MkdirAll(path, 0700); err != nil {
 		logger.WithError(err).Error("Error creating mount directory")
@@ -322,10 +321,7 @@ func (d plugin) attachVolume(ctx context.Context, vol *volumes.Volume) (*volumes
 }
 
 func (d plugin) detachVolume(ctx context.Context, vol *volumes.Volume) (*volumes.Volume, error) {
-	logger := log.WithContext(ctx)
-
 	for _, att := range vol.Attachments {
-		logger.Debug("Deleting attachment")
 		err := volumeattach.Delete(d.computeClient, att.ServerID, att.ID).ExtractErr()
 		if err != nil {
 			return nil, err
