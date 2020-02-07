@@ -194,10 +194,27 @@ func (d plugin) Mount(r *volume.MountRequest) (*volume.MountResponse, error) {
 	}
 
 	dev := fmt.Sprintf("/dev/disk/by-id/virtio-%.20s", vol.ID)
+	logger = logger.WithField("dev", dev)
+	err = waitForDevice(dev)
 
-	logger.Debugf("Volume attached: %+v", att)
+	if err != nil {
+		logger.WithError(err).Error("Expected block device not found")
+		return nil, fmt.Errorf("Block device not found: %s", dev)
+	}
 
-	// TODO: Format disk with e.g. ext4
+	fsType, err := getFilesystemType(dev)
+	if err != nil {
+		logger.WithError(err).Error("Detecting filesystem type failed")
+		return nil, err
+	}
+
+	if fsType == "" {
+		logger.Debug("Volume is empty, formatting")
+		if err := formatFilesystem(dev, r.Name); err != nil {
+			logger.WithError(err).Error("Formatting failed")
+			return nil, err
+		}
+	}
 
 	path := filepath.Join(d.config.MountDir, r.Name)
 	logger = logger.WithField("mount", path)
@@ -215,6 +232,8 @@ func (d plugin) Mount(r *volume.MountRequest) (*volume.MountResponse, error) {
 	resp := volume.MountResponse{
 		Mountpoint: path,
 	}
+
+	logger.Debug("Volume successfully mounted")
 
 	return &resp, nil
 }
