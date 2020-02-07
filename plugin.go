@@ -77,7 +77,7 @@ func (d plugin) Capabilities() *volume.CapabilitiesResponse {
 }
 
 func (d plugin) Create(r *volume.CreateRequest) error {
-	logger := log.WithFields(log.Fields{"volume": r.Name, "action": "create"})
+	logger := log.WithFields(log.Fields{"name": r.Name, "action": "create"})
 	logger.Infof("Creating volume '%s' ...", r.Name)
 
 	d.mutex.Lock()
@@ -99,7 +99,7 @@ func (d plugin) Create(r *volume.CreateRequest) error {
 }
 
 func (d plugin) Get(r *volume.GetRequest) (*volume.GetResponse, error) {
-	logger := log.WithFields(log.Fields{"volume": r.Name, "action": "get"})
+	logger := log.WithFields(log.Fields{"name": r.Name, "action": "get"})
 	vol, err := d.getByName(r.Name)
 
 	if err != nil {
@@ -146,7 +146,7 @@ func (d plugin) List() (*volume.ListResponse, error) {
 }
 
 func (d plugin) Mount(r *volume.MountRequest) (*volume.MountResponse, error) {
-	logger := log.WithFields(log.Fields{"volume": r.Name, "action": "mount"})
+	logger := log.WithFields(log.Fields{"name": r.Name, "action": "mount"})
 	logger.Infof("Mounting volume '%s' ...", r.Name)
 
 	d.mutex.Lock()
@@ -243,7 +243,7 @@ func (d plugin) Path(r *volume.PathRequest) (*volume.PathResponse, error) {
 }
 
 func (d plugin) Remove(r *volume.RemoveRequest) error {
-	logger := log.WithFields(log.Fields{"volume": r.Name, "action": "remove"})
+	logger := log.WithFields(log.Fields{"name": r.Name, "action": "remove"})
 	logger.Infof("Remove volume '%s' ...", r.Name)
 
 	vol, err := d.getByName(r.Name)
