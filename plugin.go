@@ -216,7 +216,7 @@ func (d plugin) Mount(r *volume.MountRequest) (*volume.MountResponse, error) {
 		}
 	}
 
-	path := filepath.Join(d.config.MountDir, r.ID)
+	path := filepath.Join(d.config.MountDir, r.Name)
 	logger = logger.WithField("mount", path)
 	if err = os.MkdirAll(path, 0700); err != nil {
 		logger.WithError(err).Error("Error creating mount directory")
@@ -239,8 +239,10 @@ func (d plugin) Mount(r *volume.MountRequest) (*volume.MountResponse, error) {
 }
 
 func (d plugin) Path(r *volume.PathRequest) (*volume.PathResponse, error) {
-
-	return nil, errors.New("Not Implemented")
+	resp := volume.PathResponse{
+		Mountpoint: filepath.Join(d.config.MountDir, r.Name),
+	}
+	return &resp, nil
 }
 
 func (d plugin) Remove(r *volume.RemoveRequest) error {
@@ -283,7 +285,7 @@ func (d plugin) Unmount(r *volume.UnmountRequest) error {
 	d.mutex.Lock()
 	defer d.mutex.Unlock()
 
-	path := filepath.Join(d.config.MountDir, r.ID)
+	path := filepath.Join(d.config.MountDir, r.Name)
 	exists, err := isDirectoryPresent(path)
 	if err != nil {
 		logger.WithError(err).Error("Error checking directory stat: %s", path)
