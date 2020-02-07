@@ -150,13 +150,34 @@ func (d plugin) Mount(r *volume.MountRequest) (*volume.MountResponse, error) {
 		return nil, err
 	}
 
+	if len(vol.Attachments) > 0 {
+		logger.Debug("Volume already attached, detaching first")
+		for _, att := range vol.Attachments {
+			err := volumeattach.Delete(d.computeClient, att.ServerID, att.ID).ExtractErr()
+			if err != nil {
+				logger.WithError(err).Errorf("Error detaching volume before mount: %s", err.Error())
+				return nil, err
+			}
+		}
+
+		// Wait to detach here
+		time.Sleep(5 * time.Second)
+
+		vol, err = volumes.Get(d.blockClient, vol.ID).Extract()
+
+		if err != nil {
+			logger.WithError(err).Errorf("Error retriving volume: %s", err.Error())
+			return nil, err
+		}
+	}
+
 	if vol.Status != "available" {
 		logger.Debugf("Volume: %+v\n", vol)
 		logger.Errorf("Invalid volume state for mounting: %s", vol.Status)
 		return nil, errors.New("Invalid Volume State")
 	}
 
-	_, err = volumeattach.Create(d.computeClient, d.instanceUUID, volumeattach.CreateOpts{
+	att, err := volumeattach.Create(d.computeClient, d.instanceUUID, volumeattach.CreateOpts{
 		VolumeID: vol.ID,
 	}).Extract()
 
@@ -164,6 +185,8 @@ func (d plugin) Mount(r *volume.MountRequest) (*volume.MountResponse, error) {
 		logger.WithError(err).Errorf("Error attaching volume: %s", err.Error())
 		return nil, err
 	}
+
+	logger.Debugf("Volume attached: %+v", att)
 
 	return nil, errors.New("Not Implemented")
 }
@@ -201,8 +224,8 @@ func (d plugin) Unmount(r *volume.UnmountRequest) error {
 	return errors.New("Not Implemented")
 }
 
-func (d plugin) getByName(name string) (volumes.Volume, error) {
-	var volume volumes.Volume
+func (d plugin) getByName(name string) (*volumes.Volume, error) {
+	var volume *volumes.Volume
 
 	pager := volumes.List(d.blockClient, volumes.ListOpts{Name: name})
 	err := pager.EachPage(func(page pagination.Page) (bool, error) {
@@ -214,7 +237,7 @@ func (d plugin) getByName(name string) (volumes.Volume, error) {
 
 		for _, v := range vList {
 			if v.Name == name {
-				volume = v
+				volume = &v
 				return false, nil
 			}
 		}
@@ -223,7 +246,7 @@ func (d plugin) getByName(name string) (volumes.Volume, error) {
 	})
 
 	if len(volume.ID) == 0 {
-		return volume, errors.New("Not Found")
+		return nil, errors.New("Not Found")
 	}
 
 	return volume, err
