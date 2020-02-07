@@ -3,6 +3,9 @@ package main
 import (
 	"errors"
 	"io/ioutil"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -157,7 +160,7 @@ func (d plugin) Mount(r *volume.MountRequest) (*volume.MountResponse, error) {
 	logger = logger.WithField("id", vol.ID)
 
 	if vol.Status == "creating" {
-		// Wait for volume creation as the docker API can be quite fast
+		// TODO: Wait for volume creation as the docker API can be quite fast
 		time.Sleep(5 * time.Second)
 	}
 
@@ -178,7 +181,7 @@ func (d plugin) Mount(r *volume.MountRequest) (*volume.MountResponse, error) {
 			}
 		}
 
-		// Wait to detach here
+		// TODO: Wait to detach here
 		time.Sleep(5 * time.Second)
 
 		vol, err = volumes.Get(d.blockClient, vol.ID).Extract()
@@ -204,9 +207,31 @@ func (d plugin) Mount(r *volume.MountRequest) (*volume.MountResponse, error) {
 		return nil, err
 	}
 
+	// TODO: Check for attachment status
+	time.Sleep(5 * time.Second)
+
 	logger.Debugf("Volume attached: %+v", att)
 
-	return nil, errors.New("Not Implemented")
+	// TODO: Format disk with e.g. ext4
+
+	path := filepath.Join(d.config.MountDir, r.Name)
+	logger = logger.WithField("mount", path)
+	if err = os.MkdirAll(path, 0700); err != nil {
+		logger.WithError(err).Error("Error creating mount directory")
+		return nil, err
+	}
+
+	out, err := exec.Command("mount", att.Device, path).CombinedOutput()
+	if err != nil {
+		log.WithError(err).Errorf("%s", out)
+		return nil, errors.New(string(out))
+	}
+
+	resp := volume.MountResponse{
+		Mountpoint: path,
+	}
+
+	return &resp, nil
 }
 
 func (d plugin) Path(r *volume.PathRequest) (*volume.PathResponse, error) {

@@ -34,6 +34,7 @@ type tConfig struct {
 	ApplicationCredentialSecret string `json:"applicationCredentialSecret,omitempty"`
 	Region                      string `json:"region,omitempty"`
 	MachineID                   string `json:"machineID,omitempty"`
+	MountDir                    string `json:"mountDir,omitempty"`
 }
 
 func init() {
@@ -51,6 +52,7 @@ func main() {
 	flag.BoolVar(&config.Quiet, "quiet", false, "Only report errors")
 	flag.StringVar(&configFile, "config", "", "")
 	flag.StringVar(&config.Prefix, "prefix", "docker-volume", "")
+	flag.StringVar(&config.MountDir, "mountDir", "/run/cinder/mounts", "")
 	flag.Parse()
 
 	if len(configFile) == 0 {
