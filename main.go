@@ -77,6 +77,8 @@ func main() {
 		log.SetLevel(log.DebugLevel)
 	}
 
+	log.Debug("Debug logging enabled")
+
 	if len(config.IdentityEndpoint) == 0 {
 		log.Fatal("Identity endpoint missing")
 	}

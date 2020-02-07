@@ -11,6 +11,7 @@ import (
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
+	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/volumeattach"
 	"github.com/gophercloud/gophercloud/pagination"
 )
 
@@ -19,6 +20,7 @@ type plugin struct {
 	computeClient *gophercloud.ServiceClient
 	config        *tConfig
 	mutex         *sync.Mutex
+	instanceUUID  string
 }
 
 func newPlugin(provider *gophercloud.ProviderClient, endpointOpts gophercloud.EndpointOpts, config *tConfig) (plugin, error) {
@@ -34,11 +36,14 @@ func newPlugin(provider *gophercloud.ProviderClient, endpointOpts gophercloud.En
 		return plugin{}, err
 	}
 
+	// Detect host UUID here
+
 	return plugin{
 		blockClient:   blockClient,
 		computeClient: computeClient,
 		config:        config,
 		mutex:         &sync.Mutex{},
+		instanceUUID:  "3f1ffa4c-2f24-425b-85b6-b77b302fb70c",
 	}, nil
 }
 
@@ -75,13 +80,8 @@ func (d plugin) Get(r *volume.GetRequest) (*volume.GetResponse, error) {
 	vol, err := d.getByName(r.Name)
 
 	if err != nil {
-		logger.WithError(err).Errorf("Error retriving volumes: %s", err.Error())
+		logger.WithError(err).Errorf("Error retriving volume: %s", err.Error())
 		return nil, err
-	}
-
-	if len(vol.ID) == 0 {
-		logger.Debugf("Volume not found: %s", r.Name)
-		return nil, errors.New("Volume Not Found")
 	}
 
 	response := &volume.GetResponse{
@@ -126,6 +126,9 @@ func (d plugin) Mount(r *volume.MountRequest) (*volume.MountResponse, error) {
 	logger := log.WithFields(log.Fields{"volume": r.Name, "action": "mount"})
 	logger.Infof("Mounting volume '%s' ...", r.Name)
 
+	d.mutex.Lock()
+	defer d.mutex.Unlock()
+
 	vol, err := d.getByName(r.Name)
 
 	if err != nil {
@@ -133,9 +136,33 @@ func (d plugin) Mount(r *volume.MountRequest) (*volume.MountResponse, error) {
 		return nil, err
 	}
 
-	if len(vol.ID) == 0 {
-		logger.Debugf("Volume not found: %s", r.Name)
-		return nil, errors.New("Volume Not Found")
+	logger = logger.WithField("id", vol.ID)
+
+	if vol.Status == "creating" {
+		// Wait for volume creation as the docker API can be quite fast
+		time.Sleep(5 * time.Second)
+	}
+
+	vol, err = volumes.Get(d.blockClient, vol.ID).Extract()
+
+	if err != nil {
+		logger.WithError(err).Errorf("Error retriving volume: %s", err.Error())
+		return nil, err
+	}
+
+	if vol.Status != "available" {
+		logger.Debugf("Volume: %+v\n", vol)
+		logger.Errorf("Invalid volume state for mounting: %s", vol.Status)
+		return nil, errors.New("Invalid Volume State")
+	}
+
+	_, err = volumeattach.Create(d.computeClient, d.instanceUUID, volumeattach.CreateOpts{
+		VolumeID: vol.ID,
+	}).Extract()
+
+	if err != nil {
+		logger.WithError(err).Errorf("Error attaching volume: %s", err.Error())
+		return nil, err
 	}
 
 	return nil, errors.New("Not Implemented")
@@ -154,11 +181,6 @@ func (d plugin) Remove(r *volume.RemoveRequest) error {
 	if err != nil {
 		logger.WithError(err).Errorf("Error retriving volume: %s", err.Error())
 		return err
-	}
-
-	if len(vol.ID) == 0 {
-		logger.Debugf("Volume not found: %s", r.Name)
-		return errors.New("Volume Not Found")
 	}
 
 	logger = logger.WithField("id", vol.ID)
@@ -199,6 +221,10 @@ func (d plugin) getByName(name string) (volumes.Volume, error) {
 
 		return true, nil
 	})
+
+	if len(volume.ID) == 0 {
+		return volume, errors.New("Not Found")
+	}
 
 	return volume, err
 }
