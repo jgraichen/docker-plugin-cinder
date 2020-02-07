@@ -2,9 +2,12 @@ package main
 
 import (
 	"errors"
+	"io/ioutil"
+	"strings"
 	"sync"
 	"time"
 
+	uuid "github.com/satori/go.uuid"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/docker/go-plugins-helpers/volume"
@@ -23,27 +26,39 @@ type plugin struct {
 	instanceUUID  string
 }
 
-func newPlugin(provider *gophercloud.ProviderClient, endpointOpts gophercloud.EndpointOpts, config *tConfig) (plugin, error) {
+func newPlugin(provider *gophercloud.ProviderClient, endpointOpts gophercloud.EndpointOpts, config *tConfig) (*plugin, error) {
 	blockClient, err := openstack.NewBlockStorageV3(provider, endpointOpts)
 
 	if err != nil {
-		return plugin{}, err
+		return nil, err
 	}
 
 	computeClient, err := openstack.NewComputeV2(provider, endpointOpts)
 
 	if err != nil {
-		return plugin{}, err
+		return nil, err
 	}
 
-	// Detect host UUID here
+	bytes, err := ioutil.ReadFile("/etc/machine-id")
+	if err != nil {
+		log.WithError(err).Error("Error reading machine id")
+		return nil, err
+	}
 
-	return plugin{
+	uuid, err := uuid.FromString(strings.TrimSpace(string(bytes)))
+	if err != nil {
+		log.WithError(err).Error("Error parsing machine id")
+		return nil, err
+	}
+
+	log.WithField("uuid", uuid).Info("Instance UUID detected")
+
+	return &plugin{
 		blockClient:   blockClient,
 		computeClient: computeClient,
 		config:        config,
 		mutex:         &sync.Mutex{},
-		instanceUUID:  "3f1ffa4c-2f24-425b-85b6-b77b302fb70c",
+		instanceUUID:  uuid.String(),
 	}, nil
 }
 
