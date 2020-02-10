@@ -114,6 +114,8 @@ func (d plugin) Create(r *volume.CreateRequest) error {
 
 func (d plugin) Get(r *volume.GetRequest) (*volume.GetResponse, error) {
 	logger := log.WithFields(log.Fields{"name": r.Name, "action": "get"})
+	logger.Debug("Volume details requested")
+
 	vol, err := d.getByName(r.Name)
 
 	if err != nil {
@@ -123,8 +125,9 @@ func (d plugin) Get(r *volume.GetRequest) (*volume.GetResponse, error) {
 
 	response := &volume.GetResponse{
 		Volume: &volume.Volume{
-			Name:      r.Name,
-			CreatedAt: vol.CreatedAt.Format(time.RFC3339),
+			Name:       r.Name,
+			CreatedAt:  vol.CreatedAt.Format(time.RFC3339),
+			Mountpoint: filepath.Join(d.config.MountDir, r.Name),
 		},
 	}
 
@@ -133,6 +136,8 @@ func (d plugin) Get(r *volume.GetRequest) (*volume.GetResponse, error) {
 
 func (d plugin) List() (*volume.ListResponse, error) {
 	logger := log.WithFields(log.Fields{"action": "list"})
+	logger.Debug("Volume listing requested")
+
 	var vols []*volume.Volume
 
 	pager := volumes.List(d.blockClient, volumes.ListOpts{})
@@ -252,9 +257,13 @@ func (d plugin) Mount(r *volume.MountRequest) (*volume.MountResponse, error) {
 }
 
 func (d plugin) Path(r *volume.PathRequest) (*volume.PathResponse, error) {
+	logger := log.WithFields(log.Fields{"name": r.Name, "action": "path"})
+	logger.Debug("Volume path requested")
+
 	resp := volume.PathResponse{
 		Mountpoint: filepath.Join(d.config.MountDir, r.Name),
 	}
+
 	return &resp, nil
 }
 
