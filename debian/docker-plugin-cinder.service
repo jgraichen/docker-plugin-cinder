@@ -1,0 +1,9 @@
+[Unit]
+Description=Docker Volume Plugin for OpenStack Cinder
+Before=docker.service
+
+[Service]
+RuntimeDirectory=cinder
+RuntimeDirectoryPreserve=true
+WorkingDirectory=%t/cinder
+ExecStart=/usr/bin/docker-plugin-cinder -config /etc/docker/cinder.json -mountDir %t/cinder/mounts

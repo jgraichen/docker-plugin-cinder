@@ -1,10 +1,28 @@
 #!/usr/bin/make -f
 
+# export DH_VERBOSE=1
+# export DH_OPTIONS=-v
+
+export GOPROXY=direct
+export GO111MODULE=auto
+
+
 %:
-	dh $@ --buildsystem=golang --with=golang --builddirectory=_build
+	dh $@ --builddirectory=_build --buildsystem=golang --with=golang --with=systemd
+
+
+override_dh_clean:
+	dh_clean
+	rm -rf _build
+
+
+override_dh_auto_install:
+	dh_auto_install -- --no-source
+
 
 override_dh_installsystemd:
-	dh_installsystemd --no-enable --no-start
+	dh_installsystemd docker-plugin-cinder.socket
+
 
 override_dh_installinit:
-	dh_installinit --no-enable --no-start
+	# Do nothing.
