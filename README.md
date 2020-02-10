@@ -29,7 +29,7 @@ Provide configuration for the plugin:
     "applicationCredentialName": "",
     "applicationCredentialSecret": "",
     "region": "",
-    "mountDir": "/run/docker/plugins/cinder"
+    "mountDir": ""
 }
 ```
 
