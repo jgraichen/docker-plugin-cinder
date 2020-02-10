@@ -52,7 +52,7 @@ func main() {
 	flag.BoolVar(&config.Quiet, "quiet", false, "Only report errors")
 	flag.StringVar(&configFile, "config", "", "")
 	flag.StringVar(&config.Prefix, "prefix", "docker-volume", "")
-	flag.StringVar(&config.MountDir, "mountDir", "/run/cinder/mounts", "")
+	flag.StringVar(&config.MountDir, "mountDir", "/run/docker/plugins/cinder", "")
 	flag.Parse()
 
 	if len(configFile) == 0 {
