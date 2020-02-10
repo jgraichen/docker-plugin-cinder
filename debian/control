@@ -1,0 +1,10 @@
+Source: docker-plugin-cinder
+Section: devel
+Priority: optional
+Maintainer: Jan Graichen <jan.graichen@hpi.de>
+Build-Depends: dh-golang (>= 1.34), golang-any (>= 1.10)
+
+Package: docker-plugin-cinder
+Architecture: all
+Depends: ${misc:Depends}
+Description: Docker Volume Plugin for OpenStack Cinder
