@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -84,8 +85,20 @@ func (d plugin) Create(r *volume.CreateRequest) error {
 	d.mutex.Lock()
 	defer d.mutex.Unlock()
 
+	// DEFAULT SIZE IN GB
+	var size = 10
+	var err error
+
+	if s, ok := r.Options["size"]; ok {
+		size, err = strconv.Atoi(s)
+		if err != nil {
+			logger.WithError(err).Error("Error parsing size option")
+			return fmt.Errorf("Invalid size option: %s", err.Error())
+		}
+	}
+
 	vol, err := volumes.Create(d.blockClient, volumes.CreateOpts{
-		Size: 10,
+		Size: size,
 		Name: r.Name,
 	}).Extract()
 

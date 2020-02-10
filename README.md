@@ -12,7 +12,7 @@ The plugin attaches block storage volumes to the compute instance running the pl
 * KVM w/ virtio
 
 
-## Usage
+## Setup
 
 Provide configuration for the plugin:
 
@@ -43,6 +43,14 @@ INFO Connected.                                    endpoint="http://api.os.xopic
 ```
 
 By default a `cinder.json` from the current working directory will be used.
+
+## Usage
+
+The default volume size is 10GB but can be overridden:
+
+```
+$ docker volume create -d cinder -o size=20 volname
+```
 
 
 ## Notes
