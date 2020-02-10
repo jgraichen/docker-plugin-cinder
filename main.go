@@ -7,15 +7,12 @@ import (
 	_log "log"
 	"os"
 
+	"github.com/coreos/go-systemd/activation"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/docker/go-plugins-helpers/volume"
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
-)
-
-const (
-	appName = "docker-volume-plugin-cinder"
 )
 
 type tConfig struct {
@@ -52,7 +49,7 @@ func main() {
 	flag.BoolVar(&config.Quiet, "quiet", false, "Only report errors")
 	flag.StringVar(&configFile, "config", "", "")
 	flag.StringVar(&config.Prefix, "prefix", "docker-volume", "")
-	flag.StringVar(&config.MountDir, "mountDir", "/run/docker/plugins/cinder", "")
+	flag.StringVar(&config.MountDir, "mountDir", "", "")
 	flag.Parse()
 
 	if len(configFile) == 0 {
@@ -70,6 +67,10 @@ func main() {
 	err = json.Unmarshal(content, &config)
 	if err != nil {
 		log.Fatal(err.Error())
+	}
+
+	if len(config.MountDir) == 0 {
+		log.Fatal("No mountDir configured. Abort.")
 	}
 
 	if config.Quiet {
@@ -122,7 +123,19 @@ func main() {
 
 	logger.Info("Connected.")
 
-	err = handler.ServeUnix("cinder", 0)
+	listeners, err := activation.Listeners()
+
+	if err != nil {
+		logger.WithError(err).Error(err.Error())
+	}
+
+	if len(listeners) > 0 {
+		logger.Debugf("Started with socket activation")
+		err = handler.Serve(listeners[0])
+	} else {
+		err = handler.ServeUnix("cinder", 0)
+	}
+
 	if err != nil {
 		logger.WithError(err).Fatal(err.Error())
 	}

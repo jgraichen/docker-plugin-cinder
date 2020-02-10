@@ -15,5 +15,5 @@
 # vendor/
 
 # Configuration file and binary
-cinder.json
-docker-plugin-cinder
+/cinder.json
+/docker-plugin-cinder

@@ -1,0 +1,5 @@
+[Socket]
+ListenStream=/run/docker/plugins/cinder.sock
+
+[Install]
+WantedBy=docker.service
