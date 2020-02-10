@@ -1,5 +1,11 @@
-docker-plugin-cinder (0.1.0-1) UNRELEASED; urgency=medium
+docker-plugin-cinder (0.2.0-1) unstable; urgency=medium
+
+  * Update upstream from 0.2.0
+
+ -- Jan Graichen <jan.graichen@hpi.de>  Mon, 10 Feb 2020 17:29:02 +0100
+
+docker-plugin-cinder (0.1.0-1) unstable; urgency=medium
 
   * Initial release.
 
- -- Jan Graichen <jan.graichen@hpi.de>  Mon, 10 Feb 2020 14:49:43 +0100
+ -- Jan Graichen <jan.graichen@hpi.de>  Mon, 10 Feb 2020 17:28:37 +0100
