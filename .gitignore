@@ -14,6 +14,9 @@
 # Dependency directories (remove the comment below to include it)
 # vendor/
 
+# Build directory from package
+/_build
+
 # Configuration file and binary
 /cinder.json
 /docker-plugin-cinder
