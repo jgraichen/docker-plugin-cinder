@@ -81,6 +81,7 @@ func (d plugin) Capabilities() *volume.CapabilitiesResponse {
 func (d plugin) Create(r *volume.CreateRequest) error {
 	logger := log.WithFields(log.Fields{"name": r.Name, "action": "create"})
 	logger.Infof("Creating volume '%s' ...", r.Name)
+	logger.Debugf("Create: %+v", r)
 
 	d.mutex.Lock()
 	defer d.mutex.Unlock()
@@ -107,14 +108,14 @@ func (d plugin) Create(r *volume.CreateRequest) error {
 		return err
 	}
 
-	logger.WithField("id", vol.ID).Debug("Volume created.")
+	logger.WithField("id", vol.ID).Debug("Volume created")
 
 	return nil
 }
 
 func (d plugin) Get(r *volume.GetRequest) (*volume.GetResponse, error) {
 	logger := log.WithFields(log.Fields{"name": r.Name, "action": "get"})
-	logger.Debug("Volume details requested")
+	logger.Debugf("Get: %+v", r)
 
 	vol, err := d.getByName(r.Name)
 
@@ -136,7 +137,7 @@ func (d plugin) Get(r *volume.GetRequest) (*volume.GetResponse, error) {
 
 func (d plugin) List() (*volume.ListResponse, error) {
 	logger := log.WithFields(log.Fields{"action": "list"})
-	logger.Debug("Volume listing requested")
+	logger.Debugf("List")
 
 	var vols []*volume.Volume
 
@@ -167,6 +168,7 @@ func (d plugin) List() (*volume.ListResponse, error) {
 func (d plugin) Mount(r *volume.MountRequest) (*volume.MountResponse, error) {
 	logger := log.WithFields(log.Fields{"name": r.Name, "action": "mount"})
 	logger.Infof("Mounting volume '%s' ...", r.Name)
+	logger.Debugf("Mount: %+v", r)
 
 	d.mutex.Lock()
 	defer d.mutex.Unlock()
@@ -212,7 +214,7 @@ func (d plugin) Mount(r *volume.MountRequest) (*volume.MountResponse, error) {
 	}
 
 	dev := fmt.Sprintf("/dev/disk/by-id/virtio-%.20s", vol.ID)
-	logger = logger.WithField("dev", dev)
+	logger.WithField("dev", dev).Debug("Waiting for device to appear...")
 	err = waitForDevice(dev)
 
 	if err != nil {
@@ -235,12 +237,12 @@ func (d plugin) Mount(r *volume.MountRequest) (*volume.MountResponse, error) {
 	}
 
 	path := filepath.Join(d.config.MountDir, r.Name)
-	logger = logger.WithField("mount", path)
 	if err = os.MkdirAll(path, 0700); err != nil {
 		logger.WithError(err).Error("Error creating mount directory")
 		return nil, err
 	}
 
+	logger.WithField("mount", path).Debug("Mounting volume...")
 	out, err := exec.Command("mount", dev, path).CombinedOutput()
 	if err != nil {
 		log.WithError(err).Errorf("%s", out)
@@ -258,7 +260,7 @@ func (d plugin) Mount(r *volume.MountRequest) (*volume.MountResponse, error) {
 
 func (d plugin) Path(r *volume.PathRequest) (*volume.PathResponse, error) {
 	logger := log.WithFields(log.Fields{"name": r.Name, "action": "path"})
-	logger.Debug("Volume path requested")
+	logger.Debugf("Path: %+v", r)
 
 	resp := volume.PathResponse{
 		Mountpoint: filepath.Join(d.config.MountDir, r.Name),
@@ -269,7 +271,8 @@ func (d plugin) Path(r *volume.PathRequest) (*volume.PathResponse, error) {
 
 func (d plugin) Remove(r *volume.RemoveRequest) error {
 	logger := log.WithFields(log.Fields{"name": r.Name, "action": "remove"})
-	logger.Infof("Remove volume '%s' ...", r.Name)
+	logger.Infof("Removing volume '%s' ...", r.Name)
+	logger.Debugf("Remove: %+v", r)
 
 	vol, err := d.getByName(r.Name)
 
@@ -279,7 +282,6 @@ func (d plugin) Remove(r *volume.RemoveRequest) error {
 	}
 
 	logger = logger.WithField("id", vol.ID)
-	logger.Debug("Deleting volume...")
 
 	if len(vol.Attachments) > 0 {
 		logger.Debug("Volume still attached, detaching first")
@@ -289,13 +291,15 @@ func (d plugin) Remove(r *volume.RemoveRequest) error {
 		}
 	}
 
+	logger.Debug("Deleting block volume...")
+
 	err = volumes.Delete(d.blockClient, vol.ID, volumes.DeleteOpts{}).ExtractErr()
 	if err != nil {
 		logger.WithError(err).Errorf("Error deleting volume: %s", err.Error())
 		return err
 	}
 
-	logger.Debug("Volume deleted.")
+	logger.Debug("Volume deleted")
 
 	return nil
 }
@@ -303,6 +307,7 @@ func (d plugin) Remove(r *volume.RemoveRequest) error {
 func (d plugin) Unmount(r *volume.UnmountRequest) error {
 	logger := log.WithFields(log.Fields{"name": r.Name, "action": "unmount"})
 	logger.Infof("Unmounting volume '%s' ...", r.Name)
+	logger.Debugf("Unmount: %+v", r)
 
 	d.mutex.Lock()
 	defer d.mutex.Unlock()
