@@ -81,6 +81,7 @@ func (d plugin) Capabilities() *volume.CapabilitiesResponse {
 func (d plugin) Create(r *volume.CreateRequest) error {
 	logger := log.WithFields(log.Fields{"name": r.Name, "action": "create"})
 	logger.Infof("Creating volume '%s' ...", r.Name)
+	logger.Debugf("Create: %+v", r)
 
 	d.mutex.Lock()
 	defer d.mutex.Unlock()
@@ -107,14 +108,14 @@ func (d plugin) Create(r *volume.CreateRequest) error {
 		return err
 	}
 
-	logger.WithField("id", vol.ID).Debug("Volume created.")
+	logger.WithField("id", vol.ID).Debug("Volume created")
 
 	return nil
 }
 
 func (d plugin) Get(r *volume.GetRequest) (*volume.GetResponse, error) {
 	logger := log.WithFields(log.Fields{"name": r.Name, "action": "get"})
-	logger.Debug("Volume details requested")
+	logger.Debugf("Get: %+v", r)
 
 	vol, err := d.getByName(r.Name)
 
@@ -136,7 +137,7 @@ func (d plugin) Get(r *volume.GetRequest) (*volume.GetResponse, error) {
 
 func (d plugin) List() (*volume.ListResponse, error) {
 	logger := log.WithFields(log.Fields{"action": "list"})
-	logger.Debug("Volume listing requested")
+	logger.Debugf("List")
 
 	var vols []*volume.Volume
 
@@ -167,6 +168,7 @@ func (d plugin) List() (*volume.ListResponse, error) {
 func (d plugin) Mount(r *volume.MountRequest) (*volume.MountResponse, error) {
 	logger := log.WithFields(log.Fields{"name": r.Name, "action": "mount"})
 	logger.Infof("Mounting volume '%s' ...", r.Name)
+	logger.Debugf("Mount: %+v", r)
 
 	d.mutex.Lock()
 	defer d.mutex.Unlock()
@@ -179,21 +181,26 @@ func (d plugin) Mount(r *volume.MountRequest) (*volume.MountResponse, error) {
 
 	logger = logger.WithField("id", vol.ID)
 
-	if vol.Status == "creating" {
-		// TODO: Wait for volume creation as the docker API can be quite fast
-		time.Sleep(5 * time.Second)
+	if vol.Status == "creating" || vol.Status == "detaching" {
+		logger.Infof("Volume is in '%s' state, wait for 'available'...", vol.Status)
+		if vol, err = d.waitOnVolumeState(logger.Context, vol, "available"); err != nil {
+			logger.Error(err.Error())
+			return nil, err
+		}
 	}
 
-	vol, err = volumes.Get(d.blockClient, vol.ID).Extract()
-
-	if err != nil {
-		logger.WithError(err).Errorf("Error retriving volume: %s", err.Error())
+	if vol, err = volumes.Get(d.blockClient, vol.ID).Extract(); err != nil {
 		return nil, err
 	}
 
 	if len(vol.Attachments) > 0 {
 		logger.Debug("Volume already attached, detaching first")
 		if vol, err = d.detachVolume(logger.Context, vol); err != nil {
+			logger.WithError(err).Error("Error detaching volume")
+			return nil, err
+		}
+
+		if vol, err = d.waitOnVolumeState(logger.Context, vol, "available"); err != nil {
 			logger.WithError(err).Error("Error detaching volume")
 			return nil, err
 		}
@@ -205,20 +212,31 @@ func (d plugin) Mount(r *volume.MountRequest) (*volume.MountResponse, error) {
 		return nil, errors.New("Invalid Volume State")
 	}
 
-	vol, err = d.attachVolume(logger.Context, vol)
+	//
+	// Attaching block volume to compute instance
+
+	opts := volumeattach.CreateOpts{VolumeID: vol.ID}
+	_, err = volumeattach.Create(d.computeClient, d.config.MachineID, opts).Extract()
+
 	if err != nil {
 		logger.WithError(err).Errorf("Error attaching volume: %s", err.Error())
 		return nil, err
 	}
 
+	//
+	// Waiting for device appearance
+
 	dev := fmt.Sprintf("/dev/disk/by-id/virtio-%.20s", vol.ID)
-	logger = logger.WithField("dev", dev)
+	logger.WithField("dev", dev).Debug("Waiting for device to appear...")
 	err = waitForDevice(dev)
 
 	if err != nil {
 		logger.WithError(err).Error("Expected block device not found")
 		return nil, fmt.Errorf("Block device not found: %s", dev)
 	}
+
+	//
+	// Check filesystem and format if necessary
 
 	fsType, err := getFilesystemType(dev)
 	if err != nil {
@@ -234,13 +252,16 @@ func (d plugin) Mount(r *volume.MountRequest) (*volume.MountResponse, error) {
 		}
 	}
 
+	//
+	// Mount device
+
 	path := filepath.Join(d.config.MountDir, r.Name)
-	logger = logger.WithField("mount", path)
 	if err = os.MkdirAll(path, 0700); err != nil {
 		logger.WithError(err).Error("Error creating mount directory")
 		return nil, err
 	}
 
+	logger.WithField("mount", path).Debug("Mounting volume...")
 	out, err := exec.Command("mount", dev, path).CombinedOutput()
 	if err != nil {
 		log.WithError(err).Errorf("%s", out)
@@ -258,7 +279,7 @@ func (d plugin) Mount(r *volume.MountRequest) (*volume.MountResponse, error) {
 
 func (d plugin) Path(r *volume.PathRequest) (*volume.PathResponse, error) {
 	logger := log.WithFields(log.Fields{"name": r.Name, "action": "path"})
-	logger.Debug("Volume path requested")
+	logger.Debugf("Path: %+v", r)
 
 	resp := volume.PathResponse{
 		Mountpoint: filepath.Join(d.config.MountDir, r.Name),
@@ -269,7 +290,8 @@ func (d plugin) Path(r *volume.PathRequest) (*volume.PathResponse, error) {
 
 func (d plugin) Remove(r *volume.RemoveRequest) error {
 	logger := log.WithFields(log.Fields{"name": r.Name, "action": "remove"})
-	logger.Infof("Remove volume '%s' ...", r.Name)
+	logger.Infof("Removing volume '%s' ...", r.Name)
+	logger.Debugf("Remove: %+v", r)
 
 	vol, err := d.getByName(r.Name)
 
@@ -279,7 +301,6 @@ func (d plugin) Remove(r *volume.RemoveRequest) error {
 	}
 
 	logger = logger.WithField("id", vol.ID)
-	logger.Debug("Deleting volume...")
 
 	if len(vol.Attachments) > 0 {
 		logger.Debug("Volume still attached, detaching first")
@@ -289,13 +310,15 @@ func (d plugin) Remove(r *volume.RemoveRequest) error {
 		}
 	}
 
+	logger.Debug("Deleting block volume...")
+
 	err = volumes.Delete(d.blockClient, vol.ID, volumes.DeleteOpts{}).ExtractErr()
 	if err != nil {
 		logger.WithError(err).Errorf("Error deleting volume: %s", err.Error())
 		return err
 	}
 
-	logger.Debug("Volume deleted.")
+	logger.Debug("Volume deleted")
 
 	return nil
 }
@@ -303,6 +326,7 @@ func (d plugin) Remove(r *volume.RemoveRequest) error {
 func (d plugin) Unmount(r *volume.UnmountRequest) error {
 	logger := log.WithFields(log.Fields{"name": r.Name, "action": "unmount"})
 	logger.Infof("Unmounting volume '%s' ...", r.Name)
+	logger.Debugf("Unmount: %+v", r)
 
 	d.mutex.Lock()
 	defer d.mutex.Unlock()
@@ -361,20 +385,6 @@ func (d plugin) getByName(name string) (*volumes.Volume, error) {
 	return volume, err
 }
 
-func (d plugin) attachVolume(ctx context.Context, vol *volumes.Volume) (*volumes.Volume, error) {
-	logger := log.WithContext(ctx)
-
-	opts := volumeattach.CreateOpts{VolumeID: vol.ID}
-	_, err := volumeattach.Create(d.computeClient, d.config.MachineID, opts).Extract()
-
-	if err != nil {
-		logger.WithError(err).Errorf("Error attaching volume: %s", err.Error())
-		return nil, err
-	}
-
-	return d.waitOnVolumeState(ctx, vol, "available")
-}
-
 func (d plugin) detachVolume(ctx context.Context, vol *volumes.Volume) (*volumes.Volume, error) {
 	for _, att := range vol.Attachments {
 		err := volumeattach.Delete(d.computeClient, att.ServerID, att.ID).ExtractErr()
@@ -383,7 +393,7 @@ func (d plugin) detachVolume(ctx context.Context, vol *volumes.Volume) (*volumes
 		}
 	}
 
-	return d.waitOnVolumeState(ctx, vol, "available")
+	return vol, nil
 }
 
 func (d plugin) waitOnVolumeState(ctx context.Context, vol *volumes.Volume, status string) (*volumes.Volume, error) {
