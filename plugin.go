@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/sha1"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -100,7 +101,11 @@ func (d plugin) Create(r *volume.CreateRequest) error {
 
 	vol, err := volumes.Create(d.blockClient, volumes.CreateOpts{
 		Size: size,
-		Name: r.Name,
+		Name: d.getVolumeName(r.Name),
+		Metadata: map[string]string{
+			"docker-volume-cluster": d.config.Cluster,
+			"docker-volume-name":    r.Name,
+		},
 	}).Extract()
 
 	if err != nil {
@@ -140,15 +145,20 @@ func (d plugin) List() (*volume.ListResponse, error) {
 	logger.Debugf("List")
 
 	var vols []*volume.Volume
+	opts := volumes.ListOpts{
+		Metadata: map[string]string{
+			"docker-volume-cluster": d.config.Cluster,
+		},
+	}
 
-	pager := volumes.List(d.blockClient, volumes.ListOpts{})
+	pager := volumes.List(d.blockClient, opts)
 	err := pager.EachPage(func(page pagination.Page) (bool, error) {
 		vList, _ := volumes.ExtractVolumes(page)
 
 		for _, v := range vList {
 			if len(v.Name) > 0 {
 				vols = append(vols, &volume.Volume{
-					Name:      v.Name,
+					Name:      v.Metadata["docker-volume-name"],
 					CreatedAt: v.CreatedAt.Format(time.RFC3339),
 				})
 			}
@@ -357,10 +367,26 @@ func (d plugin) Unmount(r *volume.UnmountRequest) error {
 	return nil
 }
 
+func (d plugin) getVolumeName(name string) string {
+	s := sha1.New()
+	s.Write([]byte(d.config.Cluster))
+	s.Write([]byte("\u0000"))
+	s.Write([]byte(name))
+
+	return fmt.Sprintf("%s-%x", d.config.Prefix, s.Sum(nil))
+}
+
 func (d plugin) getByName(name string) (*volumes.Volume, error) {
 	var volume *volumes.Volume
 
-	pager := volumes.List(d.blockClient, volumes.ListOpts{Name: name})
+	opts := volumes.ListOpts{
+		Metadata: map[string]string{
+			"docker-volume-cluster": d.config.Cluster,
+			"docker-volume-name":    name,
+		},
+	}
+
+	pager := volumes.List(d.blockClient, opts)
 	err := pager.EachPage(func(page pagination.Page) (bool, error) {
 		vList, err := volumes.ExtractVolumes(page)
 
@@ -369,10 +395,8 @@ func (d plugin) getByName(name string) (*volumes.Volume, error) {
 		}
 
 		for _, v := range vList {
-			if v.Name == name {
-				volume = &v
-				return false, nil
-			}
+			volume = &v
+			return false, nil
 		}
 
 		return true, nil

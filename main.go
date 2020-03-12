@@ -19,6 +19,7 @@ type tConfig struct {
 	Debug                       bool
 	Quiet                       bool
 	Prefix                      string `json:"prefix,omitempty"`
+	Cluster                     string `json:"cluster,omitempty"`
 	IdentityEndpoint            string `json:"endpoint,omitempty"`
 	Username                    string `json:"username,omitempty"`
 	Password                    string `json:"password,omitempty"`
@@ -49,6 +50,7 @@ func main() {
 	flag.BoolVar(&config.Quiet, "quiet", false, "Only report errors")
 	flag.StringVar(&configFile, "config", "", "")
 	flag.StringVar(&config.Prefix, "prefix", "docker-volume", "")
+	flag.StringVar(&config.Cluster, "cluster", "default", "")
 	flag.StringVar(&config.MountDir, "mountDir", "", "")
 	flag.Parse()
 
