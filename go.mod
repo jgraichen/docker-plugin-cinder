@@ -10,5 +10,5 @@ require (
 	github.com/gophercloud/gophercloud v0.24.0
 	github.com/kr/pretty v0.1.0 // indirect
 	github.com/satori/go.uuid v1.2.0
-	github.com/sirupsen/logrus v1.4.2
+	github.com/sirupsen/logrus v1.8.1
 )
