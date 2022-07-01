@@ -21,8 +21,8 @@ Provide configuration for the plugin:
     "endpoint": "http://keystone.example.org/v3",
     "username": "username",
     "password": "password",
-    "domainID: "",
-    "domainName": "default"
+    "domainID": "",
+    "domainName": "default",
     "tenantID": "",
     "tenantName": "",
     "applicationCredentialId": "",

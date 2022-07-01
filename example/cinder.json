@@ -2,5 +2,13 @@
     "endpoint": "http://keystone.example.org/v3",
     "username": "username",
     "password": "password",
-    "domainName": "default"
+    "domainID": "",
+    "domainName": "default",
+    "tenantID": "",
+    "tenantName": "",
+    "applicationCredentialId": "",
+    "applicationCredentialName": "",
+    "applicationCredentialSecret": "",
+    "region": "",
+    "mountDir": ""
 }

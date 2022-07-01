@@ -7,7 +7,7 @@ import (
 	_log "log"
 	"os"
 
-	"github.com/coreos/go-systemd/activation"
+	"github.com/coreos/go-systemd/v22/activation"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/docker/go-plugins-helpers/volume"
