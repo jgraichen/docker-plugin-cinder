@@ -13,11 +13,25 @@ builds:
       - arm64
 
 checksum:
-  algorithm: sha256
-  name_template: SHA256SUMS
+  algorithm: sha384
+  name_template: SHA384SUMS
 
 changelog:
-  skip: True
+  use: git
+
+  groups:
+    - title: Changes
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: Fixes
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: Others
+      order: 999
+
+  filters:
+    exclude:
+      - '^Merge pull request'
 
 release:
-  draft: true
+  draft: False
