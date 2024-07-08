@@ -18,11 +18,11 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/docker/go-plugins-helpers/volume"
-	"github.com/gophercloud/gophercloud"
-	"github.com/gophercloud/gophercloud/openstack"
-	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
-	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/volumeattach"
-	"github.com/gophercloud/gophercloud/pagination"
+	"github.com/gophercloud/gophercloud/v2"
+	"github.com/gophercloud/gophercloud/v2/openstack"
+	"github.com/gophercloud/gophercloud/v2/openstack/blockstorage/v3/volumes"
+	"github.com/gophercloud/gophercloud/v2/openstack/compute/v2/volumeattach"
+	"github.com/gophercloud/gophercloud/v2/pagination"
 )
 
 type plugin struct {
@@ -98,10 +98,10 @@ func (d plugin) Create(r *volume.CreateRequest) error {
 		}
 	}
 
-	vol, err := volumes.Create(d.blockClient, volumes.CreateOpts{
+	vol, err := volumes.Create(context.TODO(), d.blockClient, volumes.CreateOpts{
 		Size: size,
 		Name: r.Name,
-	}).Extract()
+	}, volumes.SchedulerHintOpts{}).Extract()
 
 	if err != nil {
 		logger.WithError(err).Errorf("Error creating volume: %s", err.Error())
@@ -142,7 +142,7 @@ func (d plugin) List() (*volume.ListResponse, error) {
 	var vols []*volume.Volume
 
 	pager := volumes.List(d.blockClient, volumes.ListOpts{})
-	err := pager.EachPage(func(page pagination.Page) (bool, error) {
+	err := pager.EachPage(context.TODO(), func(ctx context.Context, page pagination.Page) (bool, error) {
 		vList, _ := volumes.ExtractVolumes(page)
 
 		for _, v := range vList {
@@ -189,7 +189,7 @@ func (d plugin) Mount(r *volume.MountRequest) (*volume.MountResponse, error) {
 		}
 	}
 
-	if vol, err = volumes.Get(d.blockClient, vol.ID).Extract(); err != nil {
+	if vol, err = volumes.Get(context.TODO(), d.blockClient, vol.ID).Extract(); err != nil {
 		return nil, err
 	}
 
@@ -216,7 +216,7 @@ func (d plugin) Mount(r *volume.MountRequest) (*volume.MountResponse, error) {
 	// Attaching block volume to compute instance
 
 	opts := volumeattach.CreateOpts{VolumeID: vol.ID}
-	_, err = volumeattach.Create(d.computeClient, d.config.MachineID, opts).Extract()
+	_, err = volumeattach.Create(context.TODO(), d.computeClient, d.config.MachineID, opts).Extract()
 
 	if err != nil {
 		logger.WithError(err).Errorf("Error attaching volume: %s", err.Error())
@@ -312,7 +312,7 @@ func (d plugin) Remove(r *volume.RemoveRequest) error {
 
 	logger.Debug("Deleting block volume...")
 
-	err = volumes.Delete(d.blockClient, vol.ID, volumes.DeleteOpts{}).ExtractErr()
+	err = volumes.Delete(context.TODO(), d.blockClient, vol.ID, volumes.DeleteOpts{}).ExtractErr()
 	if err != nil {
 		logger.WithError(err).Errorf("Error deleting volume: %s", err.Error())
 		return err
@@ -361,7 +361,7 @@ func (d plugin) getByName(name string) (*volumes.Volume, error) {
 	var volume *volumes.Volume
 
 	pager := volumes.List(d.blockClient, volumes.ListOpts{Name: name})
-	err := pager.EachPage(func(page pagination.Page) (bool, error) {
+	err := pager.EachPage(context.TODO(), func(ctx context.Context, page pagination.Page) (bool, error) {
 		vList, err := volumes.ExtractVolumes(page)
 
 		if err != nil {
@@ -387,7 +387,7 @@ func (d plugin) getByName(name string) (*volumes.Volume, error) {
 
 func (d plugin) detachVolume(ctx context.Context, vol *volumes.Volume) (*volumes.Volume, error) {
 	for _, att := range vol.Attachments {
-		err := volumeattach.Delete(d.computeClient, att.ServerID, att.ID).ExtractErr()
+		err := volumeattach.Delete(ctx, d.computeClient, att.ServerID, att.ID).ExtractErr()
 		if err != nil {
 			return nil, err
 		}
@@ -404,7 +404,7 @@ func (d plugin) waitOnVolumeState(ctx context.Context, vol *volumes.Volume, stat
 	for i := 1; i <= 10; i++ {
 		time.Sleep(500 * time.Millisecond)
 
-		vol, err := volumes.Get(d.blockClient, vol.ID).Extract()
+		vol, err := volumes.Get(ctx, d.blockClient, vol.ID).Extract()
 		if err != nil {
 			return nil, err
 		}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"io/ioutil"
@@ -11,8 +12,8 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/docker/go-plugins-helpers/volume"
-	"github.com/gophercloud/gophercloud"
-	"github.com/gophercloud/gophercloud/openstack"
+	"github.com/gophercloud/gophercloud/v2"
+	"github.com/gophercloud/gophercloud/v2/openstack"
 )
 
 type tConfig struct {
@@ -104,7 +105,7 @@ func main() {
 	logger := log.WithField("endpoint", opts.IdentityEndpoint)
 	logger.Info("Connecting...")
 
-	provider, err := openstack.AuthenticatedClient(opts)
+	provider, err := openstack.AuthenticatedClient(context.TODO(), opts)
 	if err != nil {
 		logger.WithError(err).Fatal(err.Error())
 	}
