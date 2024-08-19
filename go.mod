@@ -1,6 +1,6 @@
 module github.com/jgraichen/docker-plugin-cinder
 
-go 1.22
+go 1.23
 
 require (
 	github.com/coreos/go-systemd/v22 v22.5.0
