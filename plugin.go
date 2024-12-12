@@ -226,14 +226,16 @@ func (d plugin) Mount(r *volume.MountRequest) (*volume.MountResponse, error) {
 	//
 	// Waiting for device appearance
 
-	dev := fmt.Sprintf("/dev/disk/by-id/virtio-%.20s", vol.ID)
-	logger.WithField("dev", dev).Debug("Waiting for device to appear...")
-	err = waitForDevice(dev)
+	logger.Debug("Waiting for device to appear...")
+
+	dev, err := findDeviceWithTimeout(vol.ID)
 
 	if err != nil {
-		logger.WithError(err).Error("Expected block device not found")
-		return nil, fmt.Errorf("Block device not found: %s", dev)
+		logger.WithError(err).Error("Block device not found")
+		return nil, err
 	}
+
+	logger.WithField("dev", dev).Debug("Found device")
 
 	//
 	// Check filesystem and format if necessary
