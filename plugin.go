@@ -183,7 +183,7 @@ func (d plugin) Mount(r *volume.MountRequest) (*volume.MountResponse, error) {
 
 	if vol.Status == "creating" || vol.Status == "detaching" {
 		logger.Infof("Volume is in '%s' state, wait for 'available'...", vol.Status)
-		if vol, err = d.waitOnVolumeState(logger.Context, vol, "available"); err != nil {
+		if vol, err = d.waitOnVolumeState(vol, "available"); err != nil {
 			logger.Error(err.Error())
 			return nil, err
 		}
@@ -195,12 +195,12 @@ func (d plugin) Mount(r *volume.MountRequest) (*volume.MountResponse, error) {
 
 	if len(vol.Attachments) > 0 {
 		logger.Debug("Volume already attached, detaching first")
-		if vol, err = d.detachVolume(logger.Context, vol); err != nil {
+		if vol, err = d.detachVolume(vol); err != nil {
 			logger.WithError(err).Error("Error detaching volume")
 			return nil, err
 		}
 
-		if vol, err = d.waitOnVolumeState(logger.Context, vol, "available"); err != nil {
+		if vol, err = d.waitOnVolumeState(vol, "available"); err != nil {
 			logger.WithError(err).Error("Error detaching volume")
 			return nil, err
 		}
@@ -304,7 +304,7 @@ func (d plugin) Remove(r *volume.RemoveRequest) error {
 
 	if len(vol.Attachments) > 0 {
 		logger.Debug("Volume still attached, detaching first")
-		if vol, err = d.detachVolume(logger.Context, vol); err != nil {
+		if vol, err = d.detachVolume(vol); err != nil {
 			logger.WithError(err).Error("Error detaching volume")
 			return err
 		}
@@ -348,7 +348,7 @@ func (d plugin) Unmount(r *volume.UnmountRequest) error {
 	if err != nil {
 		logger.WithError(err).Error("Error retriving volume")
 	} else {
-		_, err = d.detachVolume(logger.Context, vol)
+		_, err = d.detachVolume(vol)
 		if err != nil {
 			logger.WithError(err).Error("Error detaching volume")
 		}
@@ -385,9 +385,9 @@ func (d plugin) getByName(name string) (*volumes.Volume, error) {
 	return volume, err
 }
 
-func (d plugin) detachVolume(ctx context.Context, vol *volumes.Volume) (*volumes.Volume, error) {
+func (d plugin) detachVolume(vol *volumes.Volume) (*volumes.Volume, error) {
 	for _, att := range vol.Attachments {
-		err := volumeattach.Delete(ctx, d.computeClient, att.ServerID, att.ID).ExtractErr()
+		err := volumeattach.Delete(context.Background(), d.computeClient, att.ServerID, att.ID).ExtractErr()
 		if err != nil {
 			return nil, err
 		}
@@ -396,7 +396,7 @@ func (d plugin) detachVolume(ctx context.Context, vol *volumes.Volume) (*volumes
 	return vol, nil
 }
 
-func (d plugin) waitOnVolumeState(ctx context.Context, vol *volumes.Volume, status string) (*volumes.Volume, error) {
+func (d plugin) waitOnVolumeState(vol *volumes.Volume, status string) (*volumes.Volume, error) {
 	if vol.Status == status {
 		return vol, nil
 	}
@@ -404,7 +404,7 @@ func (d plugin) waitOnVolumeState(ctx context.Context, vol *volumes.Volume, stat
 	for i := 1; i <= 10; i++ {
 		time.Sleep(500 * time.Millisecond)
 
-		vol, err := volumes.Get(ctx, d.blockClient, vol.ID).Extract()
+		vol, err := volumes.Get(context.Background(), d.blockClient, vol.ID).Extract()
 		if err != nil {
 			return nil, err
 		}
@@ -414,7 +414,7 @@ func (d plugin) waitOnVolumeState(ctx context.Context, vol *volumes.Volume, stat
 		}
 	}
 
-	log.WithContext(ctx).Debugf("Volume did not become %s: %+v", status, vol)
+	log.Debugf("Volume status did not change to %s: %+v", status, vol)
 
-	return nil, fmt.Errorf("Volume status did became %s", status)
+	return nil, fmt.Errorf("Volume status changed to %s", status)
 }
