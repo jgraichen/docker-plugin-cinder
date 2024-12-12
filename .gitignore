@@ -16,6 +16,7 @@
 
 # Build directory from package
 /_build
+/dist
 
 # Configuration file and binary
 /cinder.json
