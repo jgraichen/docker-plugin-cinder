@@ -83,6 +83,8 @@ func (d plugin) Create(r *volume.CreateRequest) error {
 	logger.Infof("Creating volume '%s' ...", r.Name)
 	logger.Debugf("Create: %+v", r)
 
+	ctx := context.TODO()
+
 	d.mutex.Lock()
 	defer d.mutex.Unlock()
 
@@ -98,7 +100,7 @@ func (d plugin) Create(r *volume.CreateRequest) error {
 		}
 	}
 
-	vol, err := volumes.Create(context.TODO(), d.blockClient, volumes.CreateOpts{
+	vol, err := volumes.Create(ctx, d.blockClient, volumes.CreateOpts{
 		Size: size,
 		Name: r.Name,
 	}, volumes.SchedulerHintOpts{}).Extract()
@@ -139,10 +141,12 @@ func (d plugin) List() (*volume.ListResponse, error) {
 	logger := log.WithFields(log.Fields{"action": "list"})
 	logger.Debugf("List")
 
+	ctx := context.TODO()
+
 	var vols []*volume.Volume
 
 	pager := volumes.List(d.blockClient, volumes.ListOpts{})
-	err := pager.EachPage(context.TODO(), func(ctx context.Context, page pagination.Page) (bool, error) {
+	err := pager.EachPage(ctx, func(ctx context.Context, page pagination.Page) (bool, error) {
 		vList, _ := volumes.ExtractVolumes(page)
 
 		for _, v := range vList {
@@ -170,6 +174,8 @@ func (d plugin) Mount(r *volume.MountRequest) (*volume.MountResponse, error) {
 	logger.Infof("Mounting volume '%s' ...", r.Name)
 	logger.Debugf("Mount: %+v", r)
 
+	ctx := context.TODO()
+
 	d.mutex.Lock()
 	defer d.mutex.Unlock()
 
@@ -183,24 +189,24 @@ func (d plugin) Mount(r *volume.MountRequest) (*volume.MountResponse, error) {
 
 	if vol.Status == "creating" || vol.Status == "detaching" {
 		logger.Infof("Volume is in '%s' state, wait for 'available'...", vol.Status)
-		if vol, err = d.waitOnVolumeState(vol, "available"); err != nil {
+		if vol, err = d.waitOnVolumeState(ctx, vol, "available"); err != nil {
 			logger.Error(err.Error())
 			return nil, err
 		}
 	}
 
-	if vol, err = volumes.Get(context.TODO(), d.blockClient, vol.ID).Extract(); err != nil {
+	if vol, err = volumes.Get(ctx, d.blockClient, vol.ID).Extract(); err != nil {
 		return nil, err
 	}
 
 	if len(vol.Attachments) > 0 {
 		logger.Debug("Volume already attached, detaching first")
-		if vol, err = d.detachVolume(vol); err != nil {
+		if vol, err = d.detachVolume(ctx, vol); err != nil {
 			logger.WithError(err).Error("Error detaching volume")
 			return nil, err
 		}
 
-		if vol, err = d.waitOnVolumeState(vol, "available"); err != nil {
+		if vol, err = d.waitOnVolumeState(ctx, vol, "available"); err != nil {
 			logger.WithError(err).Error("Error detaching volume")
 			return nil, err
 		}
@@ -216,7 +222,7 @@ func (d plugin) Mount(r *volume.MountRequest) (*volume.MountResponse, error) {
 	// Attaching block volume to compute instance
 
 	opts := volumeattach.CreateOpts{VolumeID: vol.ID}
-	_, err = volumeattach.Create(context.TODO(), d.computeClient, d.config.MachineID, opts).Extract()
+	_, err = volumeattach.Create(ctx, d.computeClient, d.config.MachineID, opts).Extract()
 
 	if err != nil {
 		logger.WithError(err).Errorf("Error attaching volume: %s", err.Error())
@@ -293,6 +299,8 @@ func (d plugin) Remove(r *volume.RemoveRequest) error {
 	logger.Infof("Removing volume '%s' ...", r.Name)
 	logger.Debugf("Remove: %+v", r)
 
+	ctx := context.TODO()
+
 	vol, err := d.getByName(r.Name)
 
 	if err != nil {
@@ -304,7 +312,7 @@ func (d plugin) Remove(r *volume.RemoveRequest) error {
 
 	if len(vol.Attachments) > 0 {
 		logger.Debug("Volume still attached, detaching first")
-		if vol, err = d.detachVolume(vol); err != nil {
+		if vol, err = d.detachVolume(ctx, vol); err != nil {
 			logger.WithError(err).Error("Error detaching volume")
 			return err
 		}
@@ -312,7 +320,7 @@ func (d plugin) Remove(r *volume.RemoveRequest) error {
 
 	logger.Debug("Deleting block volume...")
 
-	err = volumes.Delete(context.TODO(), d.blockClient, vol.ID, volumes.DeleteOpts{}).ExtractErr()
+	err = volumes.Delete(ctx, d.blockClient, vol.ID, volumes.DeleteOpts{}).ExtractErr()
 	if err != nil {
 		logger.WithError(err).Errorf("Error deleting volume: %s", err.Error())
 		return err
@@ -327,6 +335,8 @@ func (d plugin) Unmount(r *volume.UnmountRequest) error {
 	logger := log.WithFields(log.Fields{"name": r.Name, "action": "unmount"})
 	logger.Infof("Unmounting volume '%s' ...", r.Name)
 	logger.Debugf("Unmount: %+v", r)
+
+	ctx := context.TODO()
 
 	d.mutex.Lock()
 	defer d.mutex.Unlock()
@@ -348,7 +358,7 @@ func (d plugin) Unmount(r *volume.UnmountRequest) error {
 	if err != nil {
 		logger.WithError(err).Error("Error retriving volume")
 	} else {
-		_, err = d.detachVolume(vol)
+		_, err = d.detachVolume(ctx, vol)
 		if err != nil {
 			logger.WithError(err).Error("Error detaching volume")
 		}
@@ -360,8 +370,10 @@ func (d plugin) Unmount(r *volume.UnmountRequest) error {
 func (d plugin) getByName(name string) (*volumes.Volume, error) {
 	var volume *volumes.Volume
 
+	ctx := context.TODO()
+
 	pager := volumes.List(d.blockClient, volumes.ListOpts{Name: name})
-	err := pager.EachPage(context.TODO(), func(ctx context.Context, page pagination.Page) (bool, error) {
+	err := pager.EachPage(ctx, func(ctx context.Context, page pagination.Page) (bool, error) {
 		vList, err := volumes.ExtractVolumes(page)
 
 		if err != nil {
@@ -385,9 +397,9 @@ func (d plugin) getByName(name string) (*volumes.Volume, error) {
 	return volume, err
 }
 
-func (d plugin) detachVolume(vol *volumes.Volume) (*volumes.Volume, error) {
+func (d plugin) detachVolume(ctx context.Context, vol *volumes.Volume) (*volumes.Volume, error) {
 	for _, att := range vol.Attachments {
-		err := volumeattach.Delete(context.Background(), d.computeClient, att.ServerID, att.ID).ExtractErr()
+		err := volumeattach.Delete(ctx, d.computeClient, att.ServerID, att.ID).ExtractErr()
 		if err != nil {
 			return nil, err
 		}
@@ -396,7 +408,7 @@ func (d plugin) detachVolume(vol *volumes.Volume) (*volumes.Volume, error) {
 	return vol, nil
 }
 
-func (d plugin) waitOnVolumeState(vol *volumes.Volume, status string) (*volumes.Volume, error) {
+func (d plugin) waitOnVolumeState(ctx context.Context, vol *volumes.Volume, status string) (*volumes.Volume, error) {
 	if vol.Status == status {
 		return vol, nil
 	}
@@ -404,7 +416,7 @@ func (d plugin) waitOnVolumeState(vol *volumes.Volume, status string) (*volumes.
 	for i := 1; i <= 10; i++ {
 		time.Sleep(500 * time.Millisecond)
 
-		vol, err := volumes.Get(context.Background(), d.blockClient, vol.ID).Extract()
+		vol, err := volumes.Get(ctx, d.blockClient, vol.ID).Extract()
 		if err != nil {
 			return nil, err
 		}
