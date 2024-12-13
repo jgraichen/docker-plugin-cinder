@@ -8,11 +8,15 @@ The plugin attaches block storage volumes to the compute instance running the pl
 
 * Block Storage API v3
 * Compute API v2
-* KVM w/ virtio
+* KVM w/ virtio or SCSI disks
 
-## Setup
+## Install
 
-Provide configuration for the plugin:
+Download binary or package from the latest release. The packages include a systemd service and socket file, as well as sample config file.
+
+### Configuration
+
+Provide configuration at `/etc/docker/cinder.json` for the plugin:
 
 ```json
 {
@@ -31,10 +35,19 @@ Provide configuration for the plugin:
 }
 ```
 
-Run the daemon before docker:
+Enable and start the `docker-plugin-cinder.socket` unit and start/restart docker:
 
 ```console
-$ /usr/local/bin/docker-plugin-cinder -config /path/to/config.json
+systemctl enable docker-plugin-cinder.socket
+systemctl start docker-plugin-cinder.socket
+
+systemctl restart docker.service
+```
+
+Or manually run the plugin before docker:
+
+```console
+$ /usr/bin/docker-plugin-cinder -config /etc/docker/cinder.json
 INFO Connecting...                                 endpoint="http://api.os.xopic.de:5000/v3"
 INFO Machine ID detected                           id=e0f89b1b-ceeb-4ec5-b8f1-1b9c274f8e7b
 INFO Connected.                                    endpoint="http://api.os.xopic.de:5000/v3"
