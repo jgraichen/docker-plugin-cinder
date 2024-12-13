@@ -15,6 +15,25 @@ checksum:
   algorithm: sha384
   name_template: SHA384SUMS
 
+nfpms:
+  - id: default
+    maintainer: Jan Graichen <jan.graichen@hpi.de>
+    description: Docker Volume Plugin for OpenStack Cinder
+    license: MIT License
+    formats:
+      - deb
+      - rpm
+      - apk
+    bindir: /usr/bin
+    contents:
+      - src: ./example/cinder.json
+        dst: /etc/docker/cinder.json
+        type: config
+      - src: ./example/docker-plugin-cinder.socket
+        dst: /etc/systemd/system/docker-plugin-cinder.socket
+      - src: ./example/docker-plugin-cinder.service
+        dst: /etc/systemd/system/docker-plugin-cinder.service
+
 changelog:
   use: git
 
