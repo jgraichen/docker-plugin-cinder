@@ -35,7 +35,7 @@ nfpms:
         dst: /etc/systemd/system/docker-plugin-cinder.service
 
 changelog:
-  use: git
+  use: github
 
   groups:
     - title: Changes
