@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -46,7 +45,7 @@ func newPlugin(provider *gophercloud.ProviderClient, endpointOpts gophercloud.En
 	}
 
 	if len(config.MachineID) == 0 {
-		bytes, err := ioutil.ReadFile("/etc/machine-id")
+		bytes, err := os.ReadFile("/etc/machine-id")
 		if err != nil {
 			log.WithError(err).Error("Error reading machine id")
 			return nil, err
@@ -346,7 +345,7 @@ func (d plugin) Unmount(r *volume.UnmountRequest) error {
 	path := filepath.Join(d.config.MountDir, r.Name)
 	exists, err := isDirectoryPresent(path)
 	if err != nil {
-		logger.WithError(err).Error("Error checking directory stat: %s", path)
+		logger.WithError(err).Errorf("Error checking directory stat: %s", path)
 	}
 
 	if exists {

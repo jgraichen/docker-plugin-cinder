@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
-	"io/ioutil"
+	"io"
 	_log "log"
 	"os"
 
@@ -36,7 +36,7 @@ type tConfig struct {
 }
 
 func init() {
-	_log.SetOutput(ioutil.Discard)
+	_log.SetOutput(io.Discard)
 
 	log.SetFormatter(&log.TextFormatter{DisableTimestamp: true})
 	log.SetOutput(os.Stdout)
@@ -60,7 +60,7 @@ func main() {
 	log.SetFormatter(&log.TextFormatter{DisableTimestamp: true})
 	log.SetOutput(os.Stdout)
 
-	content, err := ioutil.ReadFile(configFile)
+	content, err := os.ReadFile(configFile)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
